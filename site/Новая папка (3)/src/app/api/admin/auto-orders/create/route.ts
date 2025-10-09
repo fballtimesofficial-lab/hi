@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { db } from '@/lib/db'
+import { getBearerToken, verifyJwt } from '@/lib/auth'
 
-// Mock data (in real app, this would be in a database)
-let clients: any[] = [
+// Example fallback clients if DB is empty (kept for reference but unused in DB path)
+const clients: any[] = [
   {
     id: '1',
     name: 'Иван Петров',
@@ -92,19 +94,8 @@ function generateDeliveryTime(): string {
 
 export async function POST(request: NextRequest) {
   try {
-    const token = request.headers.get('authorization')?.replace('Bearer ', '')
-    
-    if (!token) {
-      return NextResponse.json({ error: 'Требуется авторизация' }, { status: 401 })
-    }
-
-    const user = verifyToken(token)
-    
-    if (!user) {
-      return NextResponse.json({ error: 'Недействительный токен' }, { status: 401 })
-    }
-    
-    if (user.role !== 'MIDDLE_ADMIN' && user.role !== 'SUPER_ADMIN') {
+    const user = verifyJwt(getBearerToken(request.headers.get('authorization')) || '')
+    if (!user || (user.role !== 'MIDDLE_ADMIN' && user.role !== 'SUPER_ADMIN')) {
       return NextResponse.json({ error: 'Недостаточно прав' }, { status: 403 })
     }
 
@@ -117,47 +108,69 @@ export async function POST(request: NextRequest) {
     
     console.log(`Processing auto-orders for ${processDate.toDateString()} (${dayOfWeek})`)
 
-    // Find clients who should receive orders on target date
-    const eligibleClients = clients.filter(client => {
-      return client.isActive && 
-             client.autoOrdersEnabled && 
-             client.deliveryDays[dayOfWeek] &&
-             !orderExistsForDate(client.id, processDate)
-    })
+    // Read active clients from DB (specialFeatures contains autoOrders config)
+    const dbCustomers = await db.customer.findMany()
+    const eligibleClients = [] as any[]
+    for (const c of dbCustomers) {
+      let settings: any = { autoOrdersEnabled: false, deliveryDays: {}, calories: c.preferences ? 1200 : 1200 }
+      try { if (c.preferences) settings = { ...settings, ...JSON.parse(c.preferences) } } catch {}
+      if (c.isActive && settings.autoOrdersEnabled && settings.deliveryDays?.[dayOfWeek] && !orderExistsForDate(c.id, processDate)) {
+        eligibleClients.push({
+          id: c.id,
+          name: c.name,
+          phone: c.phone,
+          address: c.address,
+          calories: settings.calories || 1200,
+          specialFeatures: settings.specialFeatures || ''
+        })
+      }
+    }
 
     console.log(`Found ${eligibleClients.length} eligible clients for auto-orders`)
 
     const createdOrders = []
 
-    // Create orders for eligible clients
+    // Create orders for eligible clients (DB)
     for (const client of eligibleClients) {
-      const newOrder = {
-        id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-        customer: {
-          id: client.id,
-          name: client.name,
-          phone: client.phone
+      const lastOrder = await db.order.findFirst({ orderBy: { orderNumber: 'desc' } })
+      const nextOrderNumber = lastOrder ? lastOrder.orderNumber + 1 : 1
+      const created = await db.order.create({
+        data: {
+          orderNumber: nextOrderNumber,
+          customerId: client.id,
+          adminId: user.id,
+          deliveryAddress: client.address,
+          deliveryTime: generateDeliveryTime(),
+          quantity: 1,
+          calories: client.calories,
+          specialFeatures: client.specialFeatures,
+          paymentStatus: 'UNPAID',
+          paymentMethod: 'CASH',
+          isPrepaid: false,
+          orderStatus: 'PENDING',
+          createdAt: processDate
         },
-        customerName: client.name,
-        customerPhone: client.phone,
-        deliveryAddress: client.address,
-        deliveryTime: generateDeliveryTime(),
+        include: { customer: true }
+      })
+      createdOrders.push({
+        id: created.id,
+        orderNumber: created.orderNumber,
+        customer: { id: created.customer?.id, name: created.customer?.name, phone: created.customer?.phone },
+        customerName: created.customer?.name,
+        customerPhone: created.customer?.phone,
+        deliveryAddress: created.deliveryAddress,
+        deliveryTime: created.deliveryTime,
         deliveryDate: processDate.toISOString().split('T')[0],
-        quantity: 1,
-        calories: client.calories,
-        specialFeatures: client.specialFeatures,
-        paymentStatus: 'UNPAID',
-        paymentMethod: 'CASH',
-        isPrepaid: false,
-        orderStatus: 'PENDING',
+        quantity: created.quantity,
+        calories: created.calories,
+        specialFeatures: created.specialFeatures,
+        paymentStatus: created.paymentStatus,
+        paymentMethod: created.paymentMethod,
+        isPrepaid: created.isPrepaid,
+        orderStatus: created.orderStatus,
         isAutoOrder: true,
-        createdAt: new Date().toISOString()
-      }
-
-      orders.push(newOrder)
-      createdOrders.push(newOrder)
-      
-      console.log(`Created auto-order for client: ${client.name}`)
+        createdAt: created.createdAt.toISOString()
+      })
     }
 
     return NextResponse.json({
