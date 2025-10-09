@@ -1,16 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { clients } from '@/lib/clients-data'
-import { verifyToken } from '@/lib/clients-data'
+import { db } from '@/lib/db'
+import { getBearerToken, verifyJwt } from '@/lib/auth'
 
 export async function GET(request: NextRequest) {
   try {
-    const token = request.headers.get('authorization')?.replace('Bearer ', '')
-    
-    if (!token) {
-      return NextResponse.json({ error: 'Требуется авторизация' }, { status: 401 })
-    }
-
-    const user = verifyToken(token)
+    const user = verifyJwt(getBearerToken(request.headers.get('authorization')) || '')
     
     if (!user) {
       return NextResponse.json({ error: 'Недействительный токен' }, { status: 401 })
@@ -20,7 +14,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Недостаточно прав' }, { status: 403 })
     }
 
-    return NextResponse.json(clients)
+    const customers = await db.customer.findMany({ orderBy: { createdAt: 'desc' } })
+    return NextResponse.json(customers)
 
   } catch (error) {
     console.error('Error fetching clients:', error)
@@ -30,13 +25,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const token = request.headers.get('authorization')?.replace('Bearer ', '')
-    
-    if (!token) {
-      return NextResponse.json({ error: 'Требуется авторизация' }, { status: 401 })
-    }
-
-    const user = verifyToken(token)
+    const user = verifyJwt(getBearerToken(request.headers.get('authorization')) || '')
     
     if (!user) {
       return NextResponse.json({ error: 'Недействительный токен' }, { status: 401 })
@@ -59,24 +48,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Не все обязательные поля заполнены' }, { status: 400 })
     }
 
-    // Create new client
-    const newClient = {
-      id: String(clients.length + 1),
-      name,
-      phone,
-      address,
-      calories: parseInt(calories),
-      specialFeatures: specialFeatures || '',
-      createdAt: new Date().toISOString()
-    }
-
-    // Add to clients array
-    clients.push(newClient)
-
-    return NextResponse.json({ 
-      message: 'Клиент успешно создан',
-      client: newClient
+    const created = await db.customer.create({
+      data: {
+        name,
+        phone,
+        address,
+        preferences: specialFeatures ? JSON.stringify({ specialFeatures }) : null
+      }
     })
+
+    return NextResponse.json({ message: 'Клиент успешно создан', client: created })
 
   } catch (error) {
     console.error('Error creating client:', error)
