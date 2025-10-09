@@ -17,6 +17,15 @@ export async function apiFetch<T>(input: RequestInfo | URL, init: RequestInit = 
 
   if (!res.ok) {
     const message = data?.error || `Request failed: ${res.status}`
+    if (typeof window !== 'undefined' && (res.status === 401 || res.status === 403)) {
+      try {
+        localStorage.removeItem('token')
+        localStorage.removeItem('user')
+      } catch {}
+      try {
+        window.location.href = '/'
+      } catch {}
+    }
     throw new Error(message)
   }
   return data as T
