@@ -1,33 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import jwt from 'jsonwebtoken'
-
-async function verifyToken(token: string) {
-  try {
-    if (!token) return null
-    
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key') as any
-    
-    // Get user from database
-    const user = await db.admin.findUnique({
-      where: { id: decoded.id }
-    })
-    
-    if (!user || !user.isActive) {
-      return null
-    }
-    
-    return {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      role: user.role
-    }
-  } catch (error) {
-    console.error('Token verification error:', error)
-    return null
-  }
-}
+import { getBearerToken, verifyJwt } from '@/lib/auth'
 
 // Function to get day of week in Russian
 function getDayOfWeek(date: Date): string {
@@ -143,8 +116,7 @@ async function createAutoOrdersForClient(client: any, startDate: Date, endDate: 
 
 export async function POST(request: NextRequest) {
   try {
-    const token = request.headers.get('authorization')?.replace('Bearer ', '')
-    const user = await verifyToken(token || '')
+    const user = verifyJwt(getBearerToken(request.headers.get('authorization')) || '')
     
     if (!user) {
       return NextResponse.json({ error: 'Требуется авторизация' }, { status: 401 })
@@ -226,8 +198,7 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    const token = request.headers.get('authorization')?.replace('Bearer ', '')
-    const user = await verifyToken(token || '')
+    const user = verifyJwt(getBearerToken(request.headers.get('authorization')) || '')
     
     if (!user) {
       return NextResponse.json({ error: 'Требуется авторизация' }, { status: 401 })
