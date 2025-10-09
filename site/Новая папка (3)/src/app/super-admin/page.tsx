@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { apiFetch } from '@/lib/utils'
+import { useToast } from '@/hooks/use-toast'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -77,6 +79,7 @@ interface OrderStatistics {
 }
 
 export default function SuperAdminPage() {
+  const { toast } = useToast()
   const [activeTab, setActiveTab] = useState('admins')
   const [middleAdmins, setMiddleAdmins] = useState<Admin[]>([])
   const [actionLogs, setActionLogs] = useState<ActionLog[]>([])
@@ -108,43 +111,18 @@ export default function SuperAdminPage() {
   const fetchData = async () => {
     try {
       // Fetch middle admins
-      const adminsResponse = await fetch('/api/admin/middle-admins', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      })
-      
-      if (adminsResponse.ok) {
-        const adminsData = await adminsResponse.json()
-        setMiddleAdmins(adminsData)
-      }
+      const adminsData = await apiFetch<Admin[]>('/api/admin/middle-admins')
+      setMiddleAdmins(adminsData)
 
       // Fetch action logs
-      const logsResponse = await fetch('/api/admin/action-logs', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      })
-      
-      if (logsResponse.ok) {
-        const logsData = await logsResponse.json()
-        // API returns { logs: [...], total: ..., hasMore: ... }
-        setActionLogs(logsData.logs || logsData)
-      }
+      const logsData = await apiFetch<any>('/api/admin/action-logs')
+      setActionLogs(logsData.logs || logsData)
 
       // Fetch order statistics
-      const statsResponse = await fetch('/api/admin/statistics', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      })
-      
-      if (statsResponse.ok) {
-        const statsData = await statsResponse.json()
-        setOrderStatistics(statsData)
-      }
+      const statsData = await apiFetch<OrderStatistics>('/api/admin/statistics')
+      setOrderStatistics(statsData)
     } catch (error) {
-      console.error('Error fetching data:', error)
+      toast({ title: 'Ошибка загрузки', description: String(error), variant: 'destructive' })
     } finally {
       setIsLoading(false)
     }
@@ -158,20 +136,10 @@ export default function SuperAdminPage() {
 
   const toggleAdminStatus = async (adminId: string, isActive: boolean) => {
     try {
-      const response = await fetch(`/api/admin/${adminId}/toggle-status`, {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ isActive: !isActive })
-      })
-
-      if (response.ok) {
-        fetchData()
-      }
+      await apiFetch(`/api/admin/${adminId}/toggle-status`, { method: 'PATCH', body: JSON.stringify({ isActive: !isActive }) })
+      fetchData()
     } catch (error) {
-      console.error('Error toggling admin status:', error)
+      toast({ title: 'Ошибка статуса', description: String(error), variant: 'destructive' })
     }
   }
 
@@ -179,18 +147,10 @@ export default function SuperAdminPage() {
     if (!confirm('Вы уверены, что хотите удалить этого администратора?')) return
     
     try {
-      const response = await fetch(`/api/admin/${adminId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      })
-
-      if (response.ok) {
-        fetchData()
-      }
+      await apiFetch(`/api/admin/${adminId}`, { method: 'DELETE' })
+      fetchData()
     } catch (error) {
-      console.error('Error deleting admin:', error)
+      toast({ title: 'Ошибка удаления', description: String(error), variant: 'destructive' })
     }
   }
 
@@ -200,26 +160,12 @@ export default function SuperAdminPage() {
     setCreateError('')
 
     try {
-      const response = await fetch('/api/admin/middle-admins', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(createFormData)
-      })
-
-      const data = await response.json()
-
-      if (response.ok) {
-        setIsCreateModalOpen(false)
-        setCreateFormData({ name: '', email: '', password: '' })
-        fetchData()
-      } else {
-        setCreateError(data.error || 'Ошибка создания администратора')
-      }
+      await apiFetch('/api/admin/middle-admins', { method: 'POST', body: JSON.stringify(createFormData) })
+      setIsCreateModalOpen(false)
+      setCreateFormData({ name: '', email: '', password: '' })
+      fetchData()
     } catch (error) {
-      setCreateError('Ошибка соединения с сервером')
+      setCreateError(String(error))
     } finally {
       setIsCreating(false)
     }
