@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { apiFetch } from '@/lib/utils'
+import { useToast } from '@/hooks/use-toast'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -35,6 +37,7 @@ interface Order {
 }
 
 export default function CourierPage() {
+  const { toast } = useToast()
   const [orders, setOrders] = useState<Order[]>([])
   const [currentOrder, setCurrentOrder] = useState<Order | null>(null)
   const [isOrderOpen, setIsOrderOpen] = useState(false)
@@ -55,39 +58,17 @@ export default function CourierPage() {
 
   const fetchOrders = async () => {
     try {
-      const response = await fetch('/api/orders', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      })
-      
-      if (response.ok) {
-        const ordersData = await response.json()
-        // Фильтруем только доступные для доставки заказы
-        const availableOrders = ordersData.filter((order: Order) => 
-          order.orderStatus === 'PENDING' || order.orderStatus === 'IN_DELIVERY'
-        )
-        setOrders(availableOrders)
-        
-        // Если нет текущего заказа, выбираем первый доступный
-        if (!currentOrder && availableOrders.length > 0) {
-          setCurrentOrder(availableOrders[0])
-        }
-        
-        // Если есть текущий заказ, обновляем его данные
-        if (currentOrder) {
-          const updatedCurrent = availableOrders.find((order: Order) => order.id === currentOrder.id)
-          if (updatedCurrent) {
-            setCurrentOrder(updatedCurrent)
-          } else {
-            // Текущий заказ больше не доступен
-            setCurrentOrder(availableOrders.length > 0 ? availableOrders[0] : null)
-            setIsOrderOpen(false)
-          }
-        }
+      const ordersData = await apiFetch<Order[]>('/api/orders')
+      const availableOrders = ordersData.filter((order: Order) => order.orderStatus === 'PENDING' || order.orderStatus === 'IN_DELIVERY')
+      setOrders(availableOrders)
+      if (!currentOrder && availableOrders.length > 0) setCurrentOrder(availableOrders[0])
+      if (currentOrder) {
+        const updatedCurrent = availableOrders.find((order: Order) => order.id === currentOrder.id)
+        if (updatedCurrent) setCurrentOrder(updatedCurrent)
+        else { setCurrentOrder(availableOrders.length > 0 ? availableOrders[0] : null); setIsOrderOpen(false) }
       }
     } catch (error) {
-      console.error('Error fetching orders:', error)
+      toast({ title: 'Ошибка загрузки заказов', description: String(error), variant: 'destructive' })
     } finally {
       setIsLoading(false)
     }
@@ -95,21 +76,11 @@ export default function CourierPage() {
 
   const fetchNextOrder = async () => {
     try {
-      const response = await fetch('/api/courier/next-order', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      })
-      
-      if (response.ok) {
-        const orderData = await response.json()
-        setCurrentOrder(orderData)
-        setIsOrderOpen(false)
-      } else {
-        setCurrentOrder(null)
-      }
+      const orderData = await apiFetch<Order>('/api/courier/next-order')
+      setCurrentOrder(orderData)
+      setIsOrderOpen(false)
     } catch (error) {
-      console.error('Error fetching next order:', error)
+      toast({ title: 'Нет следующего заказа', description: String(error) })
       setCurrentOrder(null)
     } finally {
       setIsLoading(false)
@@ -120,20 +91,10 @@ export default function CourierPage() {
     if (!currentOrder) return
     
     try {
-      const response = await fetch(`/api/orders/${currentOrder.id}`, {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ action: 'start_delivery' })
-      })
-      
-      if (response.ok) {
-        setIsOrderOpen(true)
-      }
+      await apiFetch(`/api/orders/${currentOrder.id}`, { method: 'PATCH', body: JSON.stringify({ action: 'start_delivery' }) })
+      setIsOrderOpen(true)
     } catch (error) {
-      console.error('Error starting delivery:', error)
+      toast({ title: 'Ошибка открытия заказа', description: String(error), variant: 'destructive' })
     }
   }
 
@@ -141,22 +102,11 @@ export default function CourierPage() {
     if (!currentOrder) return
     
     try {
-      const response = await fetch(`/api/orders/${currentOrder.id}`, {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ action: 'complete_delivery' })
-      })
-      
-      if (response.ok) {
-        // Swipe animation and update orders
-        await new Promise(resolve => setTimeout(resolve, 300))
-        fetchOrders()
-      }
+      await apiFetch(`/api/orders/${currentOrder.id}`, { method: 'PATCH', body: JSON.stringify({ action: 'complete_delivery' }) })
+      await new Promise(resolve => setTimeout(resolve, 300))
+      fetchOrders()
     } catch (error) {
-      console.error('Error completing delivery:', error)
+      toast({ title: 'Ошибка закрытия заказа', description: String(error), variant: 'destructive' })
     }
   }
 
