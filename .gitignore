@@ -1,0 +1,19 @@
+# Global ignores
+node_modules/
+.next/
+.env
+*.log
+
+# Site project ignores
+site/**/node_modules/
+site/**/.next/
+site/**/.env
+site/**/dev.log
+site/**/server.log
+site/**/*.zip
+site/**/*.db
+site/**/db/*.db
+
+# Editor/OS
+.DS_Store
+*.swp
