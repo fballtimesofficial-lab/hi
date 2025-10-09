@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { apiFetch } from '@/lib/utils'
+import { useToast } from '@/hooks/use-toast'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -122,6 +124,7 @@ interface Stats {
 }
 
 export default function MiddleAdminPage() {
+  const { toast } = useToast()
   const [activeTab, setActiveTab] = useState('statistics')
   const [lowAdmins, setLowAdmins] = useState<Admin[]>([])
   const [orders, setOrders] = useState<Order[]>([])
@@ -249,59 +252,22 @@ export default function MiddleAdminPage() {
     if (typeof window === 'undefined') return
     
     try {
-      // Fetch low admins
-      const adminsResponse = await fetch('/api/admin/low-admins', {
-        headers: {
-          'Authorization': `Bearer ${typeof window !== 'undefined' ? localStorage.getItem('token') : ''}`
-        }
-      })
-      
-      if (adminsResponse.ok) {
-        const adminsData = await adminsResponse.json()
-        setLowAdmins(adminsData)
-      }
+      const adminsData = await apiFetch<Admin[]>('/api/admin/low-admins')
+      setLowAdmins(adminsData)
 
-      // Fetch orders
       const ordersUrl = selectedDate 
-        ? `/api/orders?date=${selectedDate.toISOString().split('T')[0]}&filters=${JSON.stringify(filters)}`
-        : `/api/orders?filters=${JSON.stringify(filters)}`
-      
-      const ordersResponse = await fetch(ordersUrl, {
-        headers: {
-          'Authorization': `Bearer ${typeof window !== 'undefined' ? localStorage.getItem('token') : ''}`
-        }
-      })
-      
-      if (ordersResponse.ok) {
-        const ordersData = await ordersResponse.json()
-        setOrders(ordersData)
-      }
+        ? `/api/orders?date=${selectedDate.toISOString().split('T')[0]}&filters=${encodeURIComponent(JSON.stringify(filters))}`
+        : `/api/orders?filters=${encodeURIComponent(JSON.stringify(filters))}`
+      const ordersData = await apiFetch<Order[]>(ordersUrl)
+      setOrders(ordersData)
 
-      // Fetch clients
-      const clientsResponse = await fetch('/api/admin/clients', {
-        headers: {
-          'Authorization': `Bearer ${typeof window !== 'undefined' ? localStorage.getItem('token') : ''}`
-        }
-      })
-      
-      if (clientsResponse.ok) {
-        const clientsData = await clientsResponse.json()
-        setClients(clientsData)
-      }
+      const clientsData = await apiFetch<Client[]>('/api/admin/clients')
+      setClients(clientsData)
 
-      // Fetch stats
-      const statsResponse = await fetch('/api/admin/statistics', {
-        headers: {
-          'Authorization': `Bearer ${typeof window !== 'undefined' ? localStorage.getItem('token') : ''}`
-        }
-      })
-      
-      if (statsResponse.ok) {
-        const statsData = await statsResponse.json()
-        setStats(statsData)
-      }
+      const statsData = await apiFetch<Stats>('/api/admin/statistics')
+      setStats(statsData)
     } catch (error) {
-      console.error('Error fetching data:', error)
+      toast({ title: 'Ошибка загрузки', description: String(error), variant: 'destructive' })
     } finally {
       setIsLoading(false)
     }
