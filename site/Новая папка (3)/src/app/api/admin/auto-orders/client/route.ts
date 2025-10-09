@@ -142,11 +142,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Клиент не найден' }, { status: 404 })
     }
 
-    // Check if client has auto orders enabled (stored in specialFeatures as JSON)
-    let clientSettings = { autoOrdersEnabled: true, deliveryDays: {} }
+    // Check if client has auto orders enabled (stored in preferences JSON)
+    let clientSettings = { autoOrdersEnabled: true, deliveryDays: {} as Record<string, boolean>, calories: 1200, specialFeatures: '' }
     try {
-      if (client.specialFeatures) {
-        const parsed = JSON.parse(client.specialFeatures)
+      if (client.preferences) {
+        const parsed = JSON.parse(client.preferences)
         clientSettings = { ...clientSettings, ...parsed }
       }
     } catch (e) {
@@ -166,12 +166,15 @@ export async function POST(request: NextRequest) {
 
     // Create orders for the client
     const createdOrders = await createAutoOrdersForClient(
-      { 
-        ...client, 
+      {
+        id: client.id,
+        name: client.name,
+        phone: client.phone,
+        address: client.address,
         deliveryDays: clientSettings.deliveryDays || {},
         calories: clientSettings.calories || 1200,
         specialFeatures: clientSettings.specialFeatures || ''
-      }, 
+      },
       startDate, 
       endDate
     )

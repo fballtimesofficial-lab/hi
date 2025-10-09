@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
     const dbCustomers = await db.customer.findMany()
     const eligibleClients = [] as any[]
     for (const c of dbCustomers) {
-      let settings: any = { autoOrdersEnabled: false, deliveryDays: {}, calories: c.preferences ? 1200 : 1200 }
+      let settings: any = { autoOrdersEnabled: false, deliveryDays: {}, calories: 1200, specialFeatures: '' }
       try { if (c.preferences) settings = { ...settings, ...JSON.parse(c.preferences) } } catch {}
       if (c.isActive && settings.autoOrdersEnabled && settings.deliveryDays?.[dayOfWeek] && !orderExistsForDate(c.id, processDate)) {
         eligibleClients.push({
