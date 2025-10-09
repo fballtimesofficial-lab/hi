@@ -49,16 +49,11 @@ export async function DELETE(request: NextRequest) {
           for (const client of clientsToDelete) {
             const ordersResult = await tx.order.deleteMany({
               where: {
-                customer: {
-                  name: client.name,
-                  phone: client.phone,
-                },
+                customerId: client.id,
                 createdAt: {
                   gte: startDate,
                   lte: endDate
-                },
-                // Можно добавить дополнительное условие для определения авто-заказов
-                // Например, проверять особые признаки авто-заказов
+                }
               }
             })
             deletedOrders += ordersResult.count

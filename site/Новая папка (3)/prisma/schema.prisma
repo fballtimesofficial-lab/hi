@@ -39,6 +39,7 @@ model Customer {
   name         String
   phone        String   @unique
   address      String
+  isActive     Boolean  @default(true)
   preferences  String?  // JSON string for special preferences
   orderPattern String?  // daily, every_other_day_even, every_other_day_odd
   createdAt    DateTime @default(now())
