@@ -70,11 +70,15 @@ model Order {
   updatedAt       DateTime   @updatedAt
   
   // Relations
-  customer  Customer @relation(fields: [customerId], references: [id])
+  customer  Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
   admin     Admin    @relation("OrderAdmin", fields: [adminId], references: [id])
-  courier   Admin?   @relation("OrderCourier", fields: [courierId], references: [id])
+  courier   Admin?   @relation("OrderCourier", fields: [courierId], references: [id], onDelete: SetNull)
   
   @@map("orders")
+  @@index([createdAt])
+  @@index([orderStatus])
+  @@index([paymentStatus])
+  @@index([paymentMethod])
 }
 
 // Action logs for history tracking
