@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { apiFetch } from '@/lib/utils'
+import { useToast } from '@/hooks/use-toast'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -59,6 +61,7 @@ interface Stats {
 }
 
 export default function LowAdminPage() {
+  const { toast } = useToast()
   const [activeTab, setActiveTab] = useState('statistics')
   const [orders, setOrders] = useState<Order[]>([])
   const [stats, setStats] = useState<Stats | null>(null)
@@ -101,30 +104,14 @@ export default function LowAdminPage() {
   const fetchData = async () => {
     try {
       // Fetch orders
-      const ordersResponse = await fetch(`/api/orders?date=${selectedDate.toISOString()}&filters=${JSON.stringify(filters)}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      })
-      
-      if (ordersResponse.ok) {
-        const ordersData = await ordersResponse.json()
-        setOrders(ordersData)
-      }
+      const ordersData = await apiFetch<Order[]>(`/api/orders?date=${selectedDate.toISOString()}&filters=${encodeURIComponent(JSON.stringify(filters))}`)
+      setOrders(ordersData)
 
       // Fetch stats
-      const statsResponse = await fetch('/api/admin/statistics', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      })
-      
-      if (statsResponse.ok) {
-        const statsData = await statsResponse.json()
-        setStats(statsData)
-      }
+      const statsData = await apiFetch<Stats>('/api/admin/statistics')
+      setStats(statsData)
     } catch (error) {
-      console.error('Error fetching data:', error)
+      toast({ title: 'Ошибка загрузки', description: String(error), variant: 'destructive' })
     } finally {
       setIsLoading(false)
     }
